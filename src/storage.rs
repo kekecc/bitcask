@@ -21,6 +21,7 @@ use crate::{
     index::{new_indexer, Indexer},
     key::check_key_valid,
     options::{check_options, BitcaskOptions},
+    transaction::{Transaction, TxnSearchType},
     utils::get_merge_path,
 };
 
@@ -198,6 +199,7 @@ impl Bitcask {
         self.indexs[key[0] as usize % self.opts.index_num as usize].clone()
     }
 
+    #[cfg(test)]
     pub(crate) fn get_size(&self) -> usize {
         self.bytes_written.load(Ordering::SeqCst)
     }
@@ -367,7 +369,7 @@ impl Bitcask {
         }
     }
 
-    fn get_record_with_pos(&self, record_pos: RecordPosition) -> Result<RecordReader> {
+    pub(crate) fn get_record_with_pos(&self, record_pos: RecordPosition) -> Result<RecordReader> {
         let active_file_id = {
             let active_file = self.active_file.read();
             active_file.id
@@ -421,6 +423,30 @@ impl Bitcask {
             offset: write_offset,
             size: write_size,
         })
+    }
+}
+
+impl Bitcask {
+    pub(crate) fn txn_search(
+        &self,
+        key_prefix: impl AsRef<[u8]>,
+        search_type: TxnSearchType,
+        txn: &Transaction,
+    ) -> Result<(RecordPosition, u64)> {
+        let key_prefix = key_prefix.as_ref();
+        let index = self.get_index(key_prefix);
+
+        index.txn_prefix_search(key_prefix, search_type, txn)
+    }
+
+    pub(crate) fn txn_write(&self, record: Record) -> Result<()> {
+        let pos = self.append_record(&record)?;
+
+        self.get_index(&record.key)
+            .put(record.key, pos)
+            .map_err(|_| anyhow::Error::msg("txn write: update index error!"))?;
+
+        Ok(())
     }
 }
 

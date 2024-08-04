@@ -48,4 +48,35 @@ impl Indexer for SkipList {
     fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
+
+    fn txn_prefix_search(
+        &self,
+        key_prefix: &[u8],
+        search_type: crate::transaction::TxnSearchType,
+        txn: &crate::transaction::Transaction,
+    ) -> anyhow::Result<(RecordPosition, u64)> {
+        // todo! use bound to narrow search range
+        for entry in self.map.iter().rev() {
+            let key = entry.key();
+
+            if key.len() - key_prefix.len() == 8 && key.starts_with(key_prefix) {
+                let ts = u64::from_be_bytes(*key.last_chunk::<8>().unwrap());
+
+                if !txn.is_visible(ts) {
+                    match search_type {
+                        crate::transaction::TxnSearchType::Read => {
+                            continue;
+                        }
+                        crate::transaction::TxnSearchType::Write => {
+                            return Err(anyhow::Error::msg("txn conflict!"));
+                        }
+                    }
+                }
+
+                return Ok((*entry.value(), ts));
+            }
+        }
+
+        Err(anyhow::Error::msg("txn search: key not found!"))
+    }
 }

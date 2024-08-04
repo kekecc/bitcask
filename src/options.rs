@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
+#[derive(Clone)]
 pub struct BitcaskOptions {
     pub db_path: PathBuf,
     pub max_file_size: usize,

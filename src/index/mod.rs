@@ -3,7 +3,11 @@ use std::sync::Arc;
 use anyhow::Result;
 use skip_list::SkipList;
 
-use crate::{data::log_record::RecordPosition, key::Key};
+use crate::{
+    data::log_record::RecordPosition,
+    key::Key,
+    transaction::{Transaction, TxnSearchType},
+};
 
 pub mod skip_list;
 
@@ -18,6 +22,13 @@ pub trait Indexer: Sync + Send {
     fn exits(&self, key: &[u8]) -> bool;
 
     fn is_empty(&self) -> bool;
+
+    fn txn_prefix_search(
+        &self,
+        key_prefix: &[u8],
+        search_type: TxnSearchType,
+        txn: &Transaction,
+    ) -> Result<(RecordPosition, u64)>;
 }
 
 pub fn new_indexer(num: u8) -> Vec<Arc<dyn Indexer>> {
